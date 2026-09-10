@@ -2,14 +2,15 @@ import json
 import re
 import requests
 from bs4 import BeautifulSoup
-from curl_cffi import requests as cffi_requests
 from fastapi import FastAPI, Query
 
 app = FastAPI(title="Carousell Scraper API")
 
+SCRAPER_API_KEY = "4a963c8235341564a382bd078440fbad"  # <-- Paste your key here
+
 @app.get("/")
 def home():
-    return {"status": "online", "message": "Carousell Scraper API is running!"}
+    return {"status": "online", "message": "Carousell Scraper API is running with Proxy!"}
 
 @app.get("/scrape")
 def scrape_carousell(query: str = Query(..., description="The search query for Carousell")):
@@ -17,25 +18,10 @@ def scrape_carousell(query: str = Query(..., description="The search query for C
     carousell_url = f"https://www.carousell.com.my/search/{encoded_query}"
     
     try:
-        headers = {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.carousell.com.my/",
-            "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": '"Windows"',
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Upgrade-Insecure-Requests": "1"
-        }
+        # Route the request through ScraperAPI
+        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={carousell_url}"
         
-        response = cffi_requests.get(
-            carousell_url, 
-            impersonate="chrome120", 
-            headers=headers,
-            timeout=15
-        )
+        response = requests.get(proxy_url, timeout=30)
         
         if response.status_code != 200:
             return {"error": f"Failed with status code {response.status_code}", "listings": []}
@@ -44,7 +30,7 @@ def scrape_carousell(query: str = Query(..., description="The search query for C
         listings = []
         seen_ids = set()
 
-        # METHOD A: Extract from standard HTML cards
+        # METHOD A: Standard HTML cards
         cards = soup.find_all('a', href=True)
         for card in cards:
             href = card['href']
@@ -71,39 +57,36 @@ def scrape_carousell(query: str = Query(..., description="The search query for C
                     "full_text": " | ".join(text_chunks)
                 })
 
-        # METHOD B: Fallback to Next.js JSON payload
+        # METHOD B: Fallback to Next.js JSON
         if not listings:
-            next_data_script = soup.find('script', id='__NEXT_DATA__')
-            if next_data_script:
-                data = json.loads(next_data_script.string)
-                
-                def find_listing_cards(obj):
-                    found_cards = []
+            next_data = soup.find('script', id='__NEXT_DATA__')
+            if next_data:
+                data = json.loads(next_data.string)
+                def find_cards(obj):
+                    found = []
                     if isinstance(obj, dict):
                         if 'listingCard' in obj and isinstance(obj['listingCard'], dict):
-                            found_cards.append(obj['listingCard'])
-                        for key, value in obj.items():
-                            found_cards.extend(find_listing_cards(value))
+                            found.append(obj['listingCard'])
+                        for k, v in obj.items():
+                            found.extend(find_cards(v))
                     elif isinstance(obj, list):
                         for item in obj:
-                            found_cards.extend(find_listing_cards(item))
-                    return found_cards
+                            found.extend(find_cards(item))
+                    return found
                 
-                raw_cards = find_listing_cards(data)
-                for listing_data in raw_cards:
-                    item_id = str(listing_data.get('id', ''))
+                for raw in find_cards(data):
+                    item_id = str(raw.get('id', ''))
                     if item_id and item_id not in seen_ids:
                         seen_ids.add(item_id)
-                        price = str(listing_data.get('price', 'N/A'))
+                        price = str(raw.get('price', 'N/A'))
                         if not price.startswith('RM'):
                             price = f"RM {price}"
-                            
                         listings.append({
                             "id": item_id,
-                            "title": listing_data.get('title', 'Unknown Title'),
+                            "title": raw.get('title', 'Unknown Title'),
                             "price": price,
                             "url": f"https://www.carousell.com.my/p/{item_id}",
-                            "full_text": listing_data.get('title', '')
+                            "full_text": raw.get('title', '')
                         })
 
         return {
