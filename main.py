@@ -17,7 +17,24 @@ def scrape_carousell(query: str = Query(..., description="The search query for C
     carousell_url = f"https://www.carousell.com.my/search/{encoded_query}"
     
     try:
-        response = cffi_requests.get(carousell_url, impersonate="chrome110", timeout=15)
+        headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.carousell.com.my/",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Upgrade-Insecure-Requests": "1"
+    }
+    response = cffi_requests.get(
+        carousell_url, 
+        impersonate="chrome120", 
+        headers=headers, 
+        timeout=15
+    )
         if response.status_code != 200:
             return {"error": f"Failed with status code {response.status_code}", "listings": []}
 
