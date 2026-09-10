@@ -19,9 +19,11 @@ def scrape_carousell(query: str = Query(..., description="The search query for C
     
     try:
         # Route the request through ScraperAPI
-        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={carousell_url}"
+        # Added &premium=true for strict Cloudflare bypass
+        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={carousell_url}&premium=true"
         
-        response = requests.get(proxy_url, timeout=30)
+        # Increased timeout to 60 seconds to allow the proxy time to solve challenges
+        response = requests.get(proxy_url, timeout=60)
         
         if response.status_code != 200:
             return {"error": f"Failed with status code {response.status_code}", "listings": []}
