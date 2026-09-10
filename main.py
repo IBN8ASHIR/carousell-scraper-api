@@ -18,15 +18,14 @@ def scrape_carousell(query: str = Query(..., description="The search query for C
     carousell_url = f"https://www.carousell.com.my/search/{encoded_query}"
     
     try:
-        # Route the request through ScraperAPI
-        # Added &premium=true for strict Cloudflare bypass
-        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={carousell_url}&premium=true"
+        # Added render=true (solves JS challenges) and country_code=my (uses local Malaysia IPs)
+        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={carousell_url}&premium=true&render=true&country_code=my"
         
-        # Increased timeout to 60 seconds to allow the proxy time to solve challenges
         response = requests.get(proxy_url, timeout=60)
         
+        # Capture the exact error text from ScraperAPI for better debugging
         if response.status_code != 200:
-            return {"error": f"Failed with status code {response.status_code}", "listings": []}
+            return {"error": f"ScraperAPI Error {response.status_code}: {response.text[:250]}", "listings": []}
 
         soup = BeautifulSoup(response.text, 'html.parser')
         listings = []
